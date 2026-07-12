@@ -3,73 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>แดชบอร์ดดูยอดสต็อก (Real-time)</title>
-    
-    <!-- Tailwind CSS -->
+    <title>แดชบอร์ดสรุปยอดสต็อก</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
-        .pulse-live { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }</style>
 </head>
 <body class="p-2 md:p-6 text-gray-800 pb-10">
-
-    <div class="max-w-4xl mx-auto space-y-4">
+    <div class="max-w-5xl mx-auto space-y-4">
         
-        <!-- แถบควบคุมด้านบน -->
-        <div class="bg-white rounded-2xl shadow-md border border-gray-100 p-5 sticky top-2 z-10">
-            <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h1 class="text-2xl font-bold text-indigo-700 leading-tight flex items-center gap-2">
-                        📊 แดชบอร์ดสรุปยอดสต็อก
-                    </h1>
-                    <p id="sync-status" class="text-sm font-semibold text-gray-500 mt-1">กำลังเชื่อมต่อฐานข้อมูล...</p>
-                </div>
-                <!-- สัญลักษณ์ไฟสถานะ -->
-                <div class="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
-                    <div id="live-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
-                    <span class="text-xs font-bold text-indigo-800">LIVE</span>
-                </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sticky top-2 z-10">
+            <div class="flex justify-between items-center mb-3">
+                <h1 class="text-lg md:text-xl font-bold text-indigo-700 flex items-center gap-2">📊 แดชบอร์ดสรุปยอด</h1>
+                <span id="sync-status" class="text-[10px] md:text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">กำลังเชื่อมต่อ...</span>
             </div>
-
-            <!-- เลือกวันที่ (ไม่ต้องเลือกกะ เพราะหน้านี้ดูยอดรวมทั้งวัน) -->
-            <div class="w-full">
-                <select id="date-select" onchange="window.setupListener()" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-900 p-3 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer shadow-sm">
-                    <option value="12/7/69">ข้อมูลประจำวันที่: 12/7/69</option>
-                    <option value="13/7/69">ข้อมูลประจำวันที่: 13/7/69</option>
-                    <option value="14/7/69">ข้อมูลประจำวันที่: 14/7/69</option>
-                </select>
-            </div>
+            <select id="date-select" onchange="window.renderUI()" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-900 p-2.5 rounded-xl font-bold text-sm focus:outline-none">
+                <option value="12/7/69">ดูยอดกะประจำวันที่: 12/7/69</option>
+                <option value="13/7/69">ดูยอดกะประจำวันที่: 13/7/69</option>
+                <option value="14/7/69">ดูยอดกะประจำวันที่: 14/7/69</option>
+            </select>
         </div>
 
-        <!-- หมวดรางวัลปกติ -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="bg-cyan-600 text-white px-5 py-3 font-bold text-lg flex items-center gap-2">
-                <span>🏆</span> หมวดรางวัลปกติ
-            </div>
+            <div class="bg-cyan-600 text-white px-4 py-2 font-bold text-sm">🏆 หมวดรางวัลปกติ</div>
             <div id="normal-prizes" class="divide-y divide-gray-100"></div>
         </div>
 
-        <!-- หมวดรางวัลพิเศษ -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="bg-emerald-600 text-white px-5 py-3 font-bold text-lg flex items-center gap-2">
-                <span>✨</span> หมวดรางวัลพิเศษ
-            </div>
+            <div class="bg-emerald-600 text-white px-4 py-2 font-bold text-sm">✨ หมวดรางวัลพิเศษ</div>
             <div id="special-prizes" class="divide-y divide-gray-100"></div>
         </div>
-
     </div>
 
-    <!-- สคริปต์เชื่อมต่อ Firebase (อ่านอย่างเดียว) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // กุญแจ Firebase ของคุณ
         const firebaseConfig = {
             apiKey: "AIzaSyBnc4kMj99ugsc19VgIF5zecbdAEwMUJVs",
             authDomain: "check-storck.firebaseapp.com",
@@ -83,129 +52,92 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // ข้อมูลรางวัล
-        const normalPrizes = [
-            { id: 'A', name: 'ทิชชู่', defaultTotal: 800 },
-            { id: 'B', name: 'ขนม', defaultTotal: 960 },
-            { id: 'C', name: 'ช้างเล็ก', defaultTotal: 120 },
-            { id: 'D', name: 'ช้างใหญ่', defaultTotal: 60 },
-            { id: 'E', name: 'สกุชชี่เล็ก', defaultTotal: 60 },
-            { id: 'F', name: 'พวงกุญแจเล็ก', defaultTotal: 120 },
-            { id: 'G', name: 'พวงกุญแจใหญ่', defaultTotal: 60 },
-            { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', defaultTotal: 240 }
+        const prizes = [
+            { id: 'A', name: 'ทิชชู่', total: 800 }, { id: 'B', name: 'ขนม', total: 960 }, { id: 'C', name: 'ช้างเล็ก', total: 120 }, { id: 'D', name: 'ช้างใหญ่', total: 60 }, { id: 'E', name: 'สกุชชี่เล็ก', total: 60 }, { id: 'F', name: 'พวงกุญแจเล็ก', total: 120 }, { id: 'G', name: 'พวงกุญแจใหญ่', total: 60 }, { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', total: 240 },
+            { id: '111', name: 'เต่า', total: 12 }, { id: '222', name: 'ตุ๊กตาเป็ด', total: 12 }, { id: '333', name: 'สกุชชี่ซาลาเปา', total: 24 }, { id: '444', name: 'สกุชชี่ขนม', total: 36 }, { id: '555', name: 'สกุชชี่กล่องเทา', total: 3 }, { id: '666', name: 'ร่ม', total: 6 }, { id: 'EDU', name: 'ออมสิน', total: 2 }, { id: 'VRU', name: 'ที่นอน', total: 3 }, { id: '2026', name: 'ตุ๊กตาใหญ่', total: 2 }, { id: 'KRU69', name: 'เสื้อคณะ', total: 3 }
         ];
 
-        const specialPrizes = [
-            { id: '111', name: 'เต่า', defaultTotal: 12 },
-            { id: '222', name: 'ตุ๊กตาเป็ด', defaultTotal: 12 },
-            { id: '333', name: 'สกุชชี่ซาลาเปา', defaultTotal: 24 },
-            { id: '444', name: 'สกุชชี่ขนม', defaultTotal: 36 },
-            { id: '555', name: 'สกุชชี่กล่องเทา', defaultTotal: 3 },
-            { id: '666', name: 'ร่ม', defaultTotal: 6 },
-            { id: 'EDU', name: 'ออมสิน', defaultTotal: 2 },
-            { id: 'VRU', name: 'ที่นอน', defaultTotal: 3 },
-            { id: '2026', name: 'ตุ๊กตาใหญ่', defaultTotal: 2 },
-            { id: 'KRU69', name: 'เสื้อคณะ', defaultTotal: 3 }
-        ];
+        window.remoteData = {};
+        const dates = ["12-7-69", "13-7-69", "14-7-69"];
+        const statusEl = document.getElementById('sync-status');
 
-        window.remoteData = {}; 
-        let unsubscribeSnapshot = null;
-
-        window.updateStatus = (message, className, indicatorClass) => {
-            const statusEl = document.getElementById('sync-status');
-            const indicatorEl = document.getElementById('live-indicator');
-            statusEl.innerText = message;
-            statusEl.className = `text-sm font-semibold mt-1 transition-colors duration-300 ${className}`;
-            indicatorEl.className = `w-3 h-3 rounded-full ${indicatorClass}`;
-        };
-
-        // ล็อกอินแบบไม่ระบุตัวตน
+        // เข้าสู่ระบบแบบไม่ระบุตัวตน และเปิดท่อข้อมูล
         signInAnonymously(auth).then(() => {
-            window.setupListener();
-        }).catch((error) => {
-            window.updateStatus("ไม่สามารถเชื่อมต่อได้", "text-red-500", "bg-red-500");
+            let loadedCount = 0;
+            dates.forEach(d => {
+                onSnapshot(doc(db, 'daily_stocks', d), (snap) => {
+                    window.remoteData[d.replace(/-/g, '/')] = snap.data() || {};
+                    loadedCount++;
+                    if(loadedCount > 0) {
+                        statusEl.innerText = "ออนไลน์ 🟢";
+                        statusEl.className = "text-[10px] md:text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded";
+                    }
+                    window.renderUI();
+                }, (error) => {
+                    statusEl.innerText = "Error: " + error.code;
+                    statusEl.className = "text-[10px] md:text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded";
+                });
+            });
+        }).catch(err => {
+            statusEl.innerText = "Auth Error";
         });
 
-        // เปิดท่อรับส่งข้อมูลแบบ Real-time (อ่านอย่างเดียว)
-        window.setupListener = () => {
-            const dateStr = document.getElementById('date-select').value;
-            const safeDateStr = dateStr.replace(/\//g, '-'); 
-            
-            const docRef = doc(db, 'daily_stocks', safeDateStr);
-            if (unsubscribeSnapshot) unsubscribeSnapshot(); 
-            
-            window.updateStatus("กำลังซิงค์...", "text-blue-500", "bg-blue-500");
-
-            unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    window.remoteData[dateStr] = docSnap.data();
-                } else {
-                    window.remoteData[dateStr] = {}; 
-                }
-                window.updateStatus("ออนไลน์ (อัปเดตทันที)", "text-green-600", "bg-green-500 pulse-live");
-                window.renderUI();
-            }, (error) => {
-                window.updateStatus("ขาดการเชื่อมต่อ", "text-red-500", "bg-red-500");
-            });
-        };
-
-        // วาดตารางหน้าจอ (แบบดูอย่างเดียว)
+        // วาดหน้าจอ
         window.renderUI = () => {
-            const date = document.getElementById('date-select').value;
-
-            const generateHTML = (prizesArray) => {
+            const selectedDate = document.getElementById('date-select').value;
+            
+            const generateHTML = (list) => {
+                // ส่วนหัวตาราง (โชว์เฉพาะจอคอม/แท็บเล็ต)
                 let html = `
-                    <div class="flex text-xs md:text-sm font-bold text-gray-500 uppercase bg-gray-50 px-4 py-3 border-b border-gray-100">
-                        <div class="w-1/2 text-left">รหัส / รายการรางวัล</div>
-                        <div class="w-1/4 text-center">ขายรวม</div>
-                        <div class="w-1/4 text-center text-indigo-600">คงเหลือ</div>
+                    <div class="hidden sm:flex text-[10px] md:text-xs font-bold text-gray-500 bg-gray-50 px-3 py-2 border-b text-center">
+                        <div class="w-1/3 text-left">รหัส / รายการ</div>
+                        <div class="w-1/6">กะ 1</div>
+                        <div class="w-1/6">กะ 2</div>
+                        <div class="w-1/6">กะ 3</div>
+                        <div class="w-1/6 text-indigo-600">รวมออกทั้งหมด</div>
+                        <div class="w-1/6 text-red-600">คงเหลือ</div>
                     </div>
                 `;
 
-                html += prizesArray.map(p => {
-                    const dayData = window.remoteData[date] || {};
+                html += list.map(p => {
+                    // ดึงข้อมูลกะของวันที่เลือกมาโชว์
+                    const dayData = window.remoteData[selectedDate] || {};
                     const itemData = dayData[p.id] || { shift1: 0, shift2: 0, shift3: 0 };
-                    
-                    const totalAmount = p.defaultTotal; 
                     const s1 = Number(itemData.shift1 || 0);
                     const s2 = Number(itemData.shift2 || 0);
                     const s3 = Number(itemData.shift3 || 0);
-                    const totalSold = s1 + s2 + s3;
-                    const remain = totalAmount - totalSold;
 
-                    // คำนวณเปอร์เซ็นต์คงเหลือ เพื่อเปลี่ยนสีแจ้งเตือน
-                    const percentRemain = (remain / totalAmount) * 100;
-                    let remainColor = "text-green-600"; // สีเขียว = เหลือเยอะ
-                    let remainBg = "bg-green-50";
-                    
-                    if (percentRemain <= 0) { 
-                        remainColor = "text-red-600"; // สีแดง = หมดแล้ว
-                        remainBg = "bg-red-100";
-                    } else if (percentRemain <= 25) { 
-                        remainColor = "text-orange-500"; // สีส้ม = ใกล้หมด
-                        remainBg = "bg-orange-50";
-                    }
+                    // คำนวณยอดขายรวมสะสมทุกวัน (ตั้งแต่ 12 ถึง 14)
+                    let totalCumulativeSold = 0;
+                    ["12/7/69", "13/7/69", "14/7/69"].forEach(d => {
+                        const dData = window.remoteData[d] || {};
+                        const iData = dData[p.id] || {};
+                        totalCumulativeSold += (Number(iData.shift1 || 0) + Number(iData.shift2 || 0) + Number(iData.shift3 || 0));
+                    });
+
+                    // คำนวณยอดคงเหลือจริง
+                    const remain = p.total - totalCumulativeSold;
 
                     return `
-                        <div class="flex items-center px-4 py-4 hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
-                            <!-- ชื่อรางวัลและรหัสสลาก -->
-                            <div class="w-1/2 flex flex-col justify-center">
-                                <div class="flex items-center gap-2">
-                                    <span class="bg-indigo-50 text-indigo-600 border border-indigo-100 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded shadow-sm">${p.id}</span>
-                                    <span class="font-bold text-gray-800 text-base md:text-lg leading-tight">${p.name}</span>
+                        <div class="flex flex-col sm:flex-row px-3 py-3 border-b hover:bg-gray-50 text-sm">
+                            <div class="w-full sm:w-1/3 flex items-center gap-2 mb-3 sm:mb-0">
+                                <span class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded">${p.id}</span>
+                                <span class="font-bold text-gray-800">${p.name}</span>
+                                <span class="text-[10px] text-gray-400 sm:hidden ml-auto">(ตั้งต้น: ${p.total})</span>
+                            </div>
+                            
+                            <div class="w-full sm:w-2/3 flex justify-between sm:justify-around items-center text-xs sm:text-sm">
+                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 1</span><span class="font-semibold text-gray-600">${s1}</span></div>
+                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 2</span><span class="font-semibold text-gray-600">${s2}</span></div>
+                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 3</span><span class="font-semibold text-gray-600">${s3}</span></div>
+                                
+                                <div class="text-center bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                                    <span class="sm:hidden text-indigo-500 text-[10px] block mb-0.5">รวมออก</span>
+                                    <span class="font-bold text-indigo-700 text-base">${totalCumulativeSold}</span>
                                 </div>
-                                <span class="text-xs text-gray-400 mt-1">สต็อกตั้งต้น: ${totalAmount}</span>
-                            </div>
-                            
-                            <!-- ขายรวม -->
-                            <div class="w-1/4 flex justify-center items-center">
-                                <span class="font-bold text-gray-500 text-lg md:text-xl">${totalSold}</span>
-                            </div>
-                            
-                            <!-- ยอดคงเหลือ ไฮไลท์สี -->
-                            <div class="w-1/4 flex justify-center items-center">
-                                <div class="${remainBg} px-3 py-1.5 rounded-lg w-full text-center">
-                                    <span class="font-bold ${remainColor} text-xl md:text-2xl">${remain}</span>
+                                <div class="text-center bg-red-50 px-3 py-1.5 rounded-lg border border-red-100">
+                                    <span class="sm:hidden text-red-500 text-[10px] block mb-0.5">เหลือ</span>
+                                    <span class="font-bold text-lg ${remain <= 0 ? 'text-red-600' : 'text-red-500'}">${remain}</span>
                                 </div>
                             </div>
                         </div>
@@ -214,10 +146,9 @@
                 return html;
             };
 
-            document.getElementById('normal-prizes').innerHTML = generateHTML(normalPrizes);
-            document.getElementById('special-prizes').innerHTML = generateHTML(specialPrizes);
+            document.getElementById('normal-prizes').innerHTML = generateHTML(prizes.slice(0, 8));
+            document.getElementById('special-prizes').innerHTML = generateHTML(prizes.slice(8));
         };
-
     </script>
 </body>
 </html>
