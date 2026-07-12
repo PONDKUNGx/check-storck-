@@ -128,34 +128,31 @@
             window.setupListener();
         }).catch((error) => {
             console.error("ล็อกอินไม่สำเร็จ:", error);
-            window.updateStatus("เชื่อมต่อล้มเหลว", "text-red-500");
+            window.updateStatus("Auth Error: " + error.code, "text-red-500 text-[10px]");
         });
 
         // เปิดท่อรับส่งข้อมูลแบบ Real-time
         window.setupListener = () => {
             const dateStr = document.getElementById('date-select').value;
-            const safeDateStr = dateStr.replace(/\//g, '-'); // เปลี่ยน / เป็น - ให้เซฟลง DB ได้
+            const safeDateStr = dateStr.replace(/\//g, '-'); 
             
-            // อ้างอิงเอกสารในฐานข้อมูล
             const docRef = doc(db, 'daily_stocks', safeDateStr);
 
-            // ถ้ามีท่อเก่าเปิดอยู่ ให้ปิดก่อน
             if (unsubscribeSnapshot) unsubscribeSnapshot(); 
             
             window.updateStatus("กำลังซิงค์...", "text-blue-500 sync-active");
 
-            // onSnapshot = ฟังการเปลี่ยนแปลงตลอดเวลา
             unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     window.remoteData[dateStr] = docSnap.data();
                 } else {
-                    window.remoteData[dateStr] = {}; // ยังไม่มีข้อมูล
+                    window.remoteData[dateStr] = {}; 
                 }
                 window.updateStatus("ออนไลน์ 🟢", "text-green-600");
                 window.renderUI();
             }, (error) => {
                 console.error("Error listening to database:", error);
-                window.updateStatus("ตัดการเชื่อมต่อ 🔴", "text-red-500");
+                window.updateStatus("DB Error: " + error.code, "text-red-500 text-[10px]");
             });
         };
 
@@ -168,10 +165,10 @@
             const generateHTML = (prizesArray) => {
                 let html = `
                     <div class="flex text-[10px] sm:text-xs font-bold text-gray-400 uppercase bg-gray-50 px-2 py-2 text-center items-center">
-                        <div class="w-24 text-left">รายการ</div>
+                        <div class="w-28 sm:w-32 text-left">รหัส / รายการ</div>
                         <div class="flex-1 text-orange-600">${shiftName}</div>
-                        <div class="w-12">รวม</div>
-                        <div class="w-12">เหลือ</div>
+                        <div class="w-10 sm:w-12">รวม</div>
+                        <div class="w-10 sm:w-12">เหลือ</div>
                     </div>
                 `;
 
@@ -190,21 +187,26 @@
 
                     return `
                         <div class="flex items-center text-sm px-2 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-b-0">
-                            <div class="w-24 flex flex-col justify-center">
-                                <span class="font-bold text-gray-800 leading-tight">${p.name}</span>
+                            <!-- เพิ่มส่วนแสดงรหัสตรงนี้ -->
+                            <div class="w-28 sm:w-32 flex flex-col justify-center pr-1">
+                                <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                                    <span class="bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">${p.id}</span>
+                                    <span class="font-bold text-gray-800 leading-tight text-xs sm:text-sm">${p.name}</span>
+                                </div>
                                 <span class="text-[10px] text-gray-400">ทั้งหมด: ${totalAmount}</span>
                             </div>
                             
+                            <!-- กด + หรือ - -->
                             <div class="flex-1 flex justify-center items-center gap-1 sm:gap-2">
-                                <button onclick="window.changeValue('${p.id}', -1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200">-</button>
+                                <button onclick="window.changeValue('${p.id}', -1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200 shadow-sm">-</button>
                                 <input type="number" id="input_${p.id}" value="${currentValue}" 
                                        onchange="window.saveData('${p.id}', this.value)" 
                                        class="w-10 sm:w-14 h-7 sm:h-8 text-center font-bold text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50/30">
-                                <button onclick="window.changeValue('${p.id}', 1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200">+</button>
+                                <button onclick="window.changeValue('${p.id}', 1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200 shadow-sm">+</button>
                             </div>
                             
-                            <div class="w-12 text-center font-bold text-green-600">${totalSold}</div>
-                            <div class="w-12 text-center font-bold ${remain < 0 ? 'text-red-500' : 'text-gray-700'}">${remain}</div>
+                            <div class="w-10 sm:w-12 text-center font-bold text-green-600">${totalSold}</div>
+                            <div class="w-10 sm:w-12 text-center font-bold ${remain < 0 ? 'text-red-500' : 'text-gray-700'}">${remain}</div>
                         </div>
                     `;
                 }).join('');
@@ -239,10 +241,9 @@
                 await setDoc(docRef, {
                     [id]: { [shift]: Number(val) }
                 }, { merge: true });
-                // พอเซฟเสร็จ onSnapshot จะทำงานอัตโนมัติ ทำให้ไม่ต้องเขียนโค้ดโหลดซ้ำ!
             } catch (error) {
                 console.error("เซฟไม่สำเร็จ:", error);
-                window.updateStatus("บันทึกไม่สำเร็จ", "text-red-500");
+                window.updateStatus("DB Error: " + error.code, "text-red-500 text-[10px]");
             }
         };
 
