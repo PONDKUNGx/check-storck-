@@ -4,249 +4,159 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ระบบเช็คสต็อกรางวัล (Firebase)</title>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
     <style>
         body { font-family: 'Sarabun', sans-serif; }
-        /* ซ่อนลูกศรในช่อง Number */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
-        
-        .sync-active { animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 </head>
-<body class="bg-gray-100 p-2 md:p-6 text-gray-800 pb-10">
-
+<body class="bg-gray-100 p-2 md:p-6 text-gray-800">
     <div class="max-w-3xl mx-auto space-y-4">
         
-        <!-- แถบควบคุมด้านบน -->
+        <!-- ส่วนควบคุม -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sticky top-2 z-10">
             <div class="flex justify-between items-center mb-3">
-                <div>
-                    <h1 class="text-xl font-bold text-gray-800 leading-tight flex items-center gap-2">
-                        ระบบจัดการสต็อก <span class="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full shadow-sm">Real-time</span>
-                    </h1>
-                    <p id="sync-status" class="text-xs font-semibold text-gray-500 mt-1">กำลังเชื่อมต่อฐานข้อมูล...</p>
-                </div>
+                <h1 class="text-xl font-bold text-gray-800">จัดการสต็อก <span id="sync-status" class="text-[10px] text-gray-500 bg-gray-100 px-2 py-1 rounded-full">รอเชื่อมต่อ...</span></h1>
             </div>
-
-            <!-- เลือกวันที่ และ กะ -->
             <div class="grid grid-cols-2 gap-2">
-                <select id="date-select" onchange="window.setupListener()" class="bg-blue-50 border border-blue-100 text-blue-800 p-2.5 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    <option value="12/7/69">12/7/69</option>
-                    <option value="13/7/69">13/7/69</option>
-                    <option value="14/7/69">14/7/69</option>
-                </select>
-                <select id="shift-select" onchange="window.renderUI()" class="bg-orange-50 border border-orange-100 text-orange-800 p-2.5 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-                    <option value="shift1">กะ 1 (เช้า)</option>
-                    <option value="shift2">กะ 2 (บ่าย)</option>
-                    <option value="shift3">กะ 3 (ดึก)</option>
-                </select>
+                <select id="date-select" onchange="window.renderUI()" class="w-full p-2 border border-blue-200 bg-blue-50 text-blue-800 rounded-xl font-bold"></select>
+                <select id="shift-select" onchange="window.renderUI()" class="w-full p-2 border border-orange-200 bg-orange-50 text-orange-800 rounded-xl font-bold"></select>
             </div>
         </div>
-
+        
         <!-- หมวดรางวัลปกติ -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="bg-cyan-500 text-white px-4 py-2 font-bold text-sm">🏆 หมวดรางวัลปกติ</div>
+            <div class="bg-cyan-500 text-white px-4 py-2 font-bold text-sm flex justify-between">
+                <span>🏆 หมวดรางวัลปกติ</span>
+                <span>เหลือ</span>
+            </div>
             <div id="normal-prizes" class="divide-y divide-gray-100"></div>
         </div>
 
         <!-- หมวดรางวัลพิเศษ -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="bg-emerald-500 text-white px-4 py-2 font-bold text-sm">✨ หมวดรางวัลพิเศษ</div>
+            <div class="bg-emerald-500 text-white px-4 py-2 font-bold text-sm flex justify-between">
+                <span>✨ หมวดรางวัลพิเศษ</span>
+                <span>เหลือ</span>
+            </div>
             <div id="special-prizes" class="divide-y divide-gray-100"></div>
         </div>
-
     </div>
 
-    <!-- สคริปต์การทำงานและเชื่อมต่อ Firebase -->
     <script type="module">
-        // โหลด Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // ==========================================
-        // 🔑 กุญแจเชื่อมต่อโปรเจกต์ Firebase ของคุณ
-        // ==========================================
+        // กุญแจ Firebase 
         const firebaseConfig = {
             apiKey: "AIzaSyBnc4kMj99ugsc19VgIF5zecbdAEwMUJVs",
-            authDomain: "check-storck.firebaseapp.com",
             projectId: "check-storck",
-            storageBucket: "check-storck.firebasestorage.app",
-            messagingSenderId: "258019752916",
             appId: "1:258019752916:web:8fe3e6140ea781ced93441"
         };
-
-        // เริ่มต้นระบบ Firebase
+        
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // ข้อมูลรางวัล
-        const normalPrizes = [
-            { id: 'A', name: 'ทิชชู่', defaultTotal: 800 },
-            { id: 'B', name: 'ขนม', defaultTotal: 960 },
-            { id: 'C', name: 'ช้างเล็ก', defaultTotal: 120 },
-            { id: 'D', name: 'ช้างใหญ่', defaultTotal: 60 },
-            { id: 'E', name: 'สกุชชี่เล็ก', defaultTotal: 60 },
-            { id: 'F', name: 'พวงกุญแจเล็ก', defaultTotal: 120 },
-            { id: 'G', name: 'พวงกุญแจใหญ่', defaultTotal: 60 },
-            { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', defaultTotal: 240 }
+        // รายการรางวัลและสต็อกตั้งต้น
+        const prizes = [
+            { id: 'A', name: 'ทิชชู่', total: 800 }, { id: 'B', name: 'ขนม', total: 960 }, { id: 'C', name: 'ช้างเล็ก', total: 120 },
+            { id: 'D', name: 'ช้างใหญ่', total: 60 }, { id: 'E', name: 'สกุชชี่เล็ก', total: 60 }, { id: 'F', name: 'พวงกุญแจเล็ก', total: 120 },
+            { id: 'G', name: 'พวงกุญแจใหญ่', total: 60 }, { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', total: 240 },
+            { id: '111', name: 'เต่า', total: 12 }, { id: '222', name: 'ตุ๊กตาเป็ด', total: 12 }, { id: '333', name: 'สกุชชี่ซาลาเปา', total: 24 },
+            { id: '444', name: 'สกุชชี่ขนม', total: 36 }, { id: '555', name: 'สกุชชี่กล่องเทา', total: 3 }, { id: '666', name: 'ร่ม', total: 6 },
+            { id: 'EDU', name: 'ออมสิน', total: 2 }, { id: 'VRU', name: 'ที่นอน', total: 3 }, { id: '2026', name: 'ตุ๊กตาใหญ่', total: 2 }, { id: 'KRU69', name: 'เสื้อคณะ', total: 3 }
         ];
 
-        const specialPrizes = [
-            { id: '111', name: 'เต่า', defaultTotal: 12 },
-            { id: '222', name: 'ตุ๊กตาเป็ด', defaultTotal: 12 },
-            { id: '333', name: 'สกุชชี่ซาลาเปา', defaultTotal: 24 },
-            { id: '444', name: 'สกุชชี่ขนม', defaultTotal: 36 },
-            { id: '555', name: 'สกุชชี่กล่องเทา', defaultTotal: 3 },
-            { id: '666', name: 'ร่ม', defaultTotal: 6 },
-            { id: 'EDU', name: 'ออมสิน', defaultTotal: 2 },
-            { id: 'VRU', name: 'ที่นอน', defaultTotal: 3 },
-            { id: '2026', name: 'ตุ๊กตาใหญ่', defaultTotal: 2 },
-            { id: 'KRU69', name: 'เสื้อคณะ', defaultTotal: 3 }
-        ];
+        window.remoteData = {};
 
-        window.remoteData = {}; 
-        let unsubscribeSnapshot = null;
+        // เตรียม Dropdown
+        document.getElementById('date-select').innerHTML = ["12/7/69", "13/7/69", "14/7/69"].map(d => `<option value="${d}">${d}</option>`).join('');
+        document.getElementById('shift-select').innerHTML = ["shift1", "shift2", "shift3"].map(s => `<option value="${s}">กะ ${s.replace('shift','')}</option>`).join('');
 
-        // ฟังก์ชันอัปเดตสถานะหน้าจอ
-        window.updateStatus = (message, className) => {
-            const statusEl = document.getElementById('sync-status');
-            statusEl.innerText = message;
-            statusEl.className = `text-xs font-semibold mt-1 transition-colors duration-300 ${className}`;
-        };
-
-        // ล็อกอินแบบไม่ระบุตัวตน (เพื่อความปลอดภัยเบื้องต้น) และเปิดท่อรับข้อมูล
+        // ล็อกอินอัตโนมัติแล้วเปิดท่อรับข้อมูล
         signInAnonymously(auth).then(() => {
-            window.setupListener();
-        }).catch((error) => {
-            console.error("ล็อกอินไม่สำเร็จ:", error);
-            window.updateStatus("Auth Error: " + error.code, "text-red-500 text-[10px]");
+            ["12-7-69", "13-7-69", "14-7-69"].forEach(d => {
+                onSnapshot(doc(db, 'daily_stocks', d), (snap) => {
+                    window.remoteData[d.replace(/-/g, '/')] = snap.data() || {};
+                    document.getElementById('sync-status').innerText = "ออนไลน์ 🟢";
+                    window.renderUI();
+                });
+            });
         });
 
-        // เปิดท่อรับส่งข้อมูลแบบ Real-time
-        window.setupListener = () => {
-            const dateStr = document.getElementById('date-select').value;
-            const safeDateStr = dateStr.replace(/\//g, '-'); 
-            
-            const docRef = doc(db, 'daily_stocks', safeDateStr);
-
-            if (unsubscribeSnapshot) unsubscribeSnapshot(); 
-            
-            window.updateStatus("กำลังซิงค์...", "text-blue-500 sync-active");
-
-            unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    window.remoteData[dateStr] = docSnap.data();
-                } else {
-                    window.remoteData[dateStr] = {}; 
-                }
-                window.updateStatus("ออนไลน์ 🟢", "text-green-600");
-                window.renderUI();
-            }, (error) => {
-                console.error("Error listening to database:", error);
-                window.updateStatus("DB Error: " + error.code, "text-red-500 text-[10px]");
-            });
-        };
-
-        // วาดตารางหน้าจอ
+        // ฟังก์ชันคำนวณและวาดหน้าจอ
         window.renderUI = () => {
             const date = document.getElementById('date-select').value;
             const shift = document.getElementById('shift-select').value;
-            const shiftName = shift === 'shift1' ? 'กะ 1' : shift === 'shift2' ? 'กะ 2' : 'กะ 3';
 
-            const generateHTML = (prizesArray) => {
-                let html = `
-                    <div class="flex text-[10px] sm:text-xs font-bold text-gray-400 uppercase bg-gray-50 px-2 py-2 text-center items-center">
-                        <div class="w-28 sm:w-32 text-left">รหัส / รายการ</div>
-                        <div class="flex-1 text-orange-600">${shiftName}</div>
-                        <div class="w-10 sm:w-12">รวม</div>
-                        <div class="w-10 sm:w-12">เหลือ</div>
-                    </div>
-                `;
-
-                html += prizesArray.map(p => {
-                    const dayData = window.remoteData[date] || {};
-                    const itemData = dayData[p.id] || { shift1: 0, shift2: 0, shift3: 0 };
+            const renderItems = (list) => list.map(p => {
+                // ข้อมูลของวันและกะที่กำลังเลือกอยู่
+                const dailyData = window.remoteData[date] || {};
+                const itemData = dailyData[p.id] || {};
+                const currentVal = Number(itemData[shift] || 0);
+                
+                // คำนวณยอดสะสมรวม (บวกตั้งแต่วันที่ 12 จนถึงวันที่เลือก)
+                let totalSold = 0;
+                const dateOrder = ["12/7/69", "13/7/69", "14/7/69"];
+                
+                for (let d of dateOrder) {
+                    const dData = window.remoteData[d] || {};
+                    const iData = dData[p.id] || {};
+                    totalSold += (Number(iData.shift1 || 0) + Number(iData.shift2 || 0) + Number(iData.shift3 || 0));
                     
-                    const totalAmount = p.defaultTotal; 
-                    const s1 = Number(itemData.shift1 || 0);
-                    const s2 = Number(itemData.shift2 || 0);
-                    const s3 = Number(itemData.shift3 || 0);
-                    const totalSold = s1 + s2 + s3;
-                    
-                    const remain = totalAmount - totalSold;
-                    const currentValue = Number(itemData[shift] || 0);
+                    // ถ้าบวกถึงวันที่เลือกอยู่แล้ว ให้หยุดบวกทันที (ยอดของวันพรุ่งนี้จะไม่ถูกนำมาหัก)
+                    if (d === date) break; 
+                }
 
-                    return `
-                        <div class="flex items-center text-sm px-2 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-b-0">
-                            <!-- เพิ่มส่วนแสดงรหัสตรงนี้ -->
-                            <div class="w-28 sm:w-32 flex flex-col justify-center pr-1">
-                                <div class="flex items-center gap-1.5 mb-1 flex-wrap">
-                                    <span class="bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">${p.id}</span>
-                                    <span class="font-bold text-gray-800 leading-tight text-xs sm:text-sm">${p.name}</span>
-                                </div>
-                                <span class="text-[10px] text-gray-400">ทั้งหมด: ${totalAmount}</span>
+                // สต็อกตั้งต้น ลบยอดขายสะสม
+                const remain = p.total - totalSold;
+
+                return `
+                    <div class="flex items-center p-3 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0">
+                        <div class="w-1/3 sm:w-2/5 flex flex-col justify-center">
+                            <div class="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                <span class="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded text-[9px] font-bold">${p.id}</span>
+                                <span class="font-bold text-gray-800 leading-tight">${p.name}</span>
                             </div>
-                            
-                            <!-- กด + หรือ - -->
-                            <div class="flex-1 flex justify-center items-center gap-1 sm:gap-2">
-                                <button onclick="window.changeValue('${p.id}', -1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200 shadow-sm">-</button>
-                                <input type="number" id="input_${p.id}" value="${currentValue}" 
-                                       onchange="window.saveData('${p.id}', this.value)" 
-                                       class="w-10 sm:w-14 h-7 sm:h-8 text-center font-bold text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50/30">
-                                <button onclick="window.changeValue('${p.id}', 1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200 shadow-sm">+</button>
-                            </div>
-                            
-                            <div class="w-10 sm:w-12 text-center font-bold text-green-600">${totalSold}</div>
-                            <div class="w-10 sm:w-12 text-center font-bold ${remain < 0 ? 'text-red-500' : 'text-gray-700'}">${remain}</div>
+                            <span class="text-[10px] text-gray-500 mt-0.5">ตั้งต้น: ${p.total}</span>
                         </div>
-                    `;
-                }).join('');
-                return html;
-            };
+                        
+                        <div class="flex-1 flex justify-center items-center gap-1 sm:gap-2">
+                            <button onclick="window.changeValue('${p.id}', -1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded shadow-sm active:bg-gray-200">-</button>
+                            <input type="number" id="input_${p.id}" value="${currentVal}" onchange="window.saveData('${p.id}', this.value)" class="w-10 sm:w-14 h-7 sm:h-8 text-center font-bold text-base border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-400 bg-orange-50/50">
+                            <button onclick="window.changeValue('${p.id}', 1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded shadow-sm active:bg-gray-200">+</button>
+                        </div>
+                        
+                        <div class="w-10 sm:w-16 text-right font-bold text-lg ${remain <= 0 ? 'text-red-500' : 'text-gray-700'}">
+                            ${remain <= 0 ? '0' : remain}
+                        </div>
+                    </div>`;
+            }).join('');
 
-            document.getElementById('normal-prizes').innerHTML = generateHTML(normalPrizes);
-            document.getElementById('special-prizes').innerHTML = generateHTML(specialPrizes);
+            document.getElementById('normal-prizes').innerHTML = renderItems(prizes.slice(0, 8));
+            document.getElementById('special-prizes').innerHTML = renderItems(prizes.slice(8));
         };
 
-        // ปุ่มกดบวก-ลบ
+        // ฟังก์ชันกดปุ่มบวก-ลบ
         window.changeValue = (id, delta) => {
-            const inputEl = document.getElementById(`input_${id}`);
-            let newVal = (parseInt(inputEl.value) || 0) + delta;
-            if (newVal < 0) newVal = 0; // กันติดลบ
-            
-            inputEl.value = newVal;
-            window.saveData(id, newVal); 
+            const input = document.getElementById(`input_${id}`);
+            const newVal = Math.max(0, parseInt(input.value) + delta);
+            input.value = newVal;
+            window.saveData(id, newVal);
         };
 
-        // บันทึกข้อมูลลงฐานข้อมูล Firebase
+        // ฟังก์ชันบันทึกลงฐานข้อมูล
         window.saveData = async (id, val) => {
-            const dateStr = document.getElementById('date-select').value;
+            document.getElementById('sync-status').innerText = "กำลังเซฟ...";
+            const dateStr = document.getElementById('date-select').value.replace(/\//g, '-');
             const shift = document.getElementById('shift-select').value;
-            const safeDateStr = dateStr.replace(/\//g, '-');
-
-            const docRef = doc(db, 'daily_stocks', safeDateStr);
-            
-            try {
-                window.updateStatus("กำลังบันทึก...", "text-orange-500 sync-active");
-                // อัปเดตเฉพาะ field ที่เปลี่ยนแปลง (merge: true)
-                await setDoc(docRef, {
-                    [id]: { [shift]: Number(val) }
-                }, { merge: true });
-            } catch (error) {
-                console.error("เซฟไม่สำเร็จ:", error);
-                window.updateStatus("DB Error: " + error.code, "text-red-500 text-[10px]");
-            }
+            await setDoc(doc(db, 'daily_stocks', dateStr), { [id]: { [shift]: Number(val) } }, { merge: true });
         };
-
     </script>
 </body>
 </html>
