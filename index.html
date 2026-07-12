@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ระบบเช็คสต็อกรางวัล (Firebase)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        /* ซ่อนลูกศรในช่อง Number */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        
+        .sync-active { animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="bg-gray-100 p-2 md:p-6 text-gray-800 pb-10">
+
+    <div class="max-w-3xl mx-auto space-y-4">
+        
+        <!-- แถบควบคุมด้านบน -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sticky top-2 z-10">
+            <div class="flex justify-between items-center mb-3">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800 leading-tight flex items-center gap-2">
+                        ระบบจัดการสต็อก <span class="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full shadow-sm">Real-time</span>
+                    </h1>
+                    <p id="sync-status" class="text-xs font-semibold text-gray-500 mt-1">กำลังเชื่อมต่อฐานข้อมูล...</p>
+                </div>
+            </div>
+
+            <!-- เลือกวันที่ และ กะ -->
+            <div class="grid grid-cols-2 gap-2">
+                <select id="date-select" onchange="window.setupListener()" class="bg-blue-50 border border-blue-100 text-blue-800 p-2.5 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <option value="12/7/69">12/7/69</option>
+                    <option value="13/7/69">13/7/69</option>
+                    <option value="14/7/69">14/7/69</option>
+                </select>
+                <select id="shift-select" onchange="window.renderUI()" class="bg-orange-50 border border-orange-100 text-orange-800 p-2.5 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+                    <option value="shift1">กะ 1 (เช้า)</option>
+                    <option value="shift2">กะ 2 (บ่าย)</option>
+                    <option value="shift3">กะ 3 (ดึก)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- หมวดรางวัลปกติ -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="bg-cyan-500 text-white px-4 py-2 font-bold text-sm">🏆 หมวดรางวัลปกติ</div>
+            <div id="normal-prizes" class="divide-y divide-gray-100"></div>
+        </div>
+
+        <!-- หมวดรางวัลพิเศษ -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="bg-emerald-500 text-white px-4 py-2 font-bold text-sm">✨ หมวดรางวัลพิเศษ</div>
+            <div id="special-prizes" class="divide-y divide-gray-100"></div>
+        </div>
+
+    </div>
+
+    <!-- สคริปต์การทำงานและเชื่อมต่อ Firebase -->
+    <script type="module">
+        // โหลด Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // ==========================================
+        // 🔑 กุญแจเชื่อมต่อโปรเจกต์ Firebase ของคุณ
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnc4kMj99ugsc19VgIF5zecbdAEwMUJVs",
+            authDomain: "check-storck.firebaseapp.com",
+            projectId: "check-storck",
+            storageBucket: "check-storck.firebasestorage.app",
+            messagingSenderId: "258019752916",
+            appId: "1:258019752916:web:8fe3e6140ea781ced93441"
+        };
+
+        // เริ่มต้นระบบ Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // ข้อมูลรางวัล
+        const normalPrizes = [
+            { id: 'A', name: 'ทิชชู่', defaultTotal: 800 },
+            { id: 'B', name: 'ขนม', defaultTotal: 960 },
+            { id: 'C', name: 'ช้างเล็ก', defaultTotal: 120 },
+            { id: 'D', name: 'ช้างใหญ่', defaultTotal: 60 },
+            { id: 'E', name: 'สกุชชี่เล็ก', defaultTotal: 60 },
+            { id: 'F', name: 'พวงกุญแจเล็ก', defaultTotal: 120 },
+            { id: 'G', name: 'พวงกุญแจใหญ่', defaultTotal: 60 },
+            { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', defaultTotal: 240 }
+        ];
+
+        const specialPrizes = [
+            { id: '111', name: 'เต่า', defaultTotal: 12 },
+            { id: '222', name: 'ตุ๊กตาเป็ด', defaultTotal: 12 },
+            { id: '333', name: 'สกุชชี่ซาลาเปา', defaultTotal: 24 },
+            { id: '444', name: 'สกุชชี่ขนม', defaultTotal: 36 },
+            { id: '555', name: 'สกุชชี่กล่องเทา', defaultTotal: 3 },
+            { id: '666', name: 'ร่ม', defaultTotal: 6 },
+            { id: 'EDU', name: 'ออมสิน', defaultTotal: 2 },
+            { id: 'VRU', name: 'ที่นอน', defaultTotal: 3 },
+            { id: '2026', name: 'ตุ๊กตาใหญ่', defaultTotal: 2 },
+            { id: 'KRU69', name: 'เสื้อคณะ', defaultTotal: 3 }
+        ];
+
+        window.remoteData = {}; 
+        let unsubscribeSnapshot = null;
+
+        // ฟังก์ชันอัปเดตสถานะหน้าจอ
+        window.updateStatus = (message, className) => {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.innerText = message;
+            statusEl.className = `text-xs font-semibold mt-1 transition-colors duration-300 ${className}`;
+        };
+
+        // ล็อกอินแบบไม่ระบุตัวตน (เพื่อความปลอดภัยเบื้องต้น) และเปิดท่อรับข้อมูล
+        signInAnonymously(auth).then(() => {
+            window.setupListener();
+        }).catch((error) => {
+            console.error("ล็อกอินไม่สำเร็จ:", error);
+            window.updateStatus("เชื่อมต่อล้มเหลว", "text-red-500");
+        });
+
+        // เปิดท่อรับส่งข้อมูลแบบ Real-time
+        window.setupListener = () => {
+            const dateStr = document.getElementById('date-select').value;
+            const safeDateStr = dateStr.replace(/\//g, '-'); // เปลี่ยน / เป็น - ให้เซฟลง DB ได้
+            
+            // อ้างอิงเอกสารในฐานข้อมูล
+            const docRef = doc(db, 'daily_stocks', safeDateStr);
+
+            // ถ้ามีท่อเก่าเปิดอยู่ ให้ปิดก่อน
+            if (unsubscribeSnapshot) unsubscribeSnapshot(); 
+            
+            window.updateStatus("กำลังซิงค์...", "text-blue-500 sync-active");
+
+            // onSnapshot = ฟังการเปลี่ยนแปลงตลอดเวลา
+            unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    window.remoteData[dateStr] = docSnap.data();
+                } else {
+                    window.remoteData[dateStr] = {}; // ยังไม่มีข้อมูล
+                }
+                window.updateStatus("ออนไลน์ 🟢", "text-green-600");
+                window.renderUI();
+            }, (error) => {
+                console.error("Error listening to database:", error);
+                window.updateStatus("ตัดการเชื่อมต่อ 🔴", "text-red-500");
+            });
+        };
+
+        // วาดตารางหน้าจอ
+        window.renderUI = () => {
+            const date = document.getElementById('date-select').value;
+            const shift = document.getElementById('shift-select').value;
+            const shiftName = shift === 'shift1' ? 'กะ 1' : shift === 'shift2' ? 'กะ 2' : 'กะ 3';
+
+            const generateHTML = (prizesArray) => {
+                let html = `
+                    <div class="flex text-[10px] sm:text-xs font-bold text-gray-400 uppercase bg-gray-50 px-2 py-2 text-center items-center">
+                        <div class="w-24 text-left">รายการ</div>
+                        <div class="flex-1 text-orange-600">${shiftName}</div>
+                        <div class="w-12">รวม</div>
+                        <div class="w-12">เหลือ</div>
+                    </div>
+                `;
+
+                html += prizesArray.map(p => {
+                    const dayData = window.remoteData[date] || {};
+                    const itemData = dayData[p.id] || { shift1: 0, shift2: 0, shift3: 0 };
+                    
+                    const totalAmount = p.defaultTotal; 
+                    const s1 = Number(itemData.shift1 || 0);
+                    const s2 = Number(itemData.shift2 || 0);
+                    const s3 = Number(itemData.shift3 || 0);
+                    const totalSold = s1 + s2 + s3;
+                    
+                    const remain = totalAmount - totalSold;
+                    const currentValue = Number(itemData[shift] || 0);
+
+                    return `
+                        <div class="flex items-center text-sm px-2 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-b-0">
+                            <div class="w-24 flex flex-col justify-center">
+                                <span class="font-bold text-gray-800 leading-tight">${p.name}</span>
+                                <span class="text-[10px] text-gray-400">ทั้งหมด: ${totalAmount}</span>
+                            </div>
+                            
+                            <div class="flex-1 flex justify-center items-center gap-1 sm:gap-2">
+                                <button onclick="window.changeValue('${p.id}', -1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200">-</button>
+                                <input type="number" id="input_${p.id}" value="${currentValue}" 
+                                       onchange="window.saveData('${p.id}', this.value)" 
+                                       class="w-10 sm:w-14 h-7 sm:h-8 text-center font-bold text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50/30">
+                                <button onclick="window.changeValue('${p.id}', 1)" class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-100 text-gray-600 font-bold rounded-lg active:bg-gray-200">+</button>
+                            </div>
+                            
+                            <div class="w-12 text-center font-bold text-green-600">${totalSold}</div>
+                            <div class="w-12 text-center font-bold ${remain < 0 ? 'text-red-500' : 'text-gray-700'}">${remain}</div>
+                        </div>
+                    `;
+                }).join('');
+                return html;
+            };
+
+            document.getElementById('normal-prizes').innerHTML = generateHTML(normalPrizes);
+            document.getElementById('special-prizes').innerHTML = generateHTML(specialPrizes);
+        };
+
+        // ปุ่มกดบวก-ลบ
+        window.changeValue = (id, delta) => {
+            const inputEl = document.getElementById(`input_${id}`);
+            let newVal = (parseInt(inputEl.value) || 0) + delta;
+            if (newVal < 0) newVal = 0; // กันติดลบ
+            
+            inputEl.value = newVal;
+            window.saveData(id, newVal); 
+        };
+
+        // บันทึกข้อมูลลงฐานข้อมูล Firebase
+        window.saveData = async (id, val) => {
+            const dateStr = document.getElementById('date-select').value;
+            const shift = document.getElementById('shift-select').value;
+            const safeDateStr = dateStr.replace(/\//g, '-');
+
+            const docRef = doc(db, 'daily_stocks', safeDateStr);
+            
+            try {
+                window.updateStatus("กำลังบันทึก...", "text-orange-500 sync-active");
+                // อัปเดตเฉพาะ field ที่เปลี่ยนแปลง (merge: true)
+                await setDoc(docRef, {
+                    [id]: { [shift]: Number(val) }
+                }, { merge: true });
+                // พอเซฟเสร็จ onSnapshot จะทำงานอัตโนมัติ ทำให้ไม่ต้องเขียนโค้ดโหลดซ้ำ!
+            } catch (error) {
+                console.error("เซฟไม่สำเร็จ:", error);
+                window.updateStatus("บันทึกไม่สำเร็จ", "text-red-500");
+            }
+        };
+
+    </script>
+</body>
+</html>
