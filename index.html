@@ -16,14 +16,13 @@
 <body class="bg-gray-100 p-2 md:p-6 text-gray-800">
     <div class="max-w-3xl mx-auto space-y-4">
         
-        <!-- ส่วนควบคุม -->
+        <!-- ส่วนควบคุม (เหลือเฉพาะเลือกวันที่) -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sticky top-2 z-10">
             <div class="flex justify-between items-center mb-3">
                 <h1 class="text-xl font-bold text-gray-800">จัดการสต็อก <span id="sync-status" class="text-[10px] text-gray-500 bg-gray-100 px-2 py-1 rounded-full">รอเชื่อมต่อ...</span></h1>
             </div>
-            <div class="grid grid-cols-2 gap-2">
+            <div>
                 <select id="date-select" onchange="window.renderUI()" class="w-full p-2 border border-blue-200 bg-blue-50 text-blue-800 rounded-xl font-bold"></select>
-                <select id="shift-select" onchange="window.renderUI()" class="w-full p-2 border border-orange-200 bg-orange-50 text-orange-800 rounded-xl font-bold"></select>
             </div>
         </div>
         
@@ -62,27 +61,30 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // กำหนดวันที่ 2 วัน (แก้ชื่อวันตรงนี้จุดเดียว ระบบจะอัปเดตทั้งหน้าเว็บและฐานข้อมูลให้อัตโนมัติ)
+        const DATES = ["วันที่ 1", "วันที่ 2"];
+
         // รายการรางวัลและสต็อกตั้งต้น
         const prizes = [
-            { id: 'A', name: 'ทิชชู่', total: 800 }, { id: 'B', name: 'ขนม', total: 960 }, { id: 'C', name: 'ช้างเล็ก', total: 120 },
-            { id: 'D', name: 'ช้างใหญ่', total: 60 }, { id: 'E', name: 'สกุชชี่เล็ก', total: 60 }, { id: 'F', name: 'พวงกุญแจเล็ก', total: 120 },
-            { id: 'G', name: 'พวงกุญแจใหญ่', total: 60 }, { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', total: 240 },
-            { id: '111', name: 'เต่า', total: 12 }, { id: '222', name: 'ตุ๊กตาเป็ด', total: 12 }, { id: '333', name: 'สกุชชี่ซาลาเปา', total: 24 },
-            { id: '444', name: 'สกุชชี่ขนม', total: 36 }, { id: '555', name: 'สกุชชี่กล่องเทา', total: 3 }, { id: '666', name: 'ร่ม', total: 6 },
-            { id: 'EDU', name: 'ออมสิน', total: 2 }, { id: 'VRU', name: 'ที่นอน', total: 3 }, { id: '2026', name: 'ตุ๊กตาใหญ่', total: 2 }, { id: 'KRU69', name: 'เสื้อคณะ', total: 3 }
+            { id: 'A', name: 'ทิชชู่', total: 576 }, { id: 'B', name: 'ขนม', total: 96 }, { id: 'C', name: 'ช้างเล็ก', total: 60 },
+            { id: 'D', name: 'ช้างใหญ่', total: 57 }, { id: 'E', name: 'สกุชชี่เล็ก', total: 108 }, { id: 'F', name: 'พวงกุญแจเล็ก', total: 60 },
+            { id: 'G', name: 'พวงกุญแจใหญ่', total: 14 },
+            { id: '000', name: 'เต่า', total: 4 }, { id: '111', name: 'เต่า', total: 24 }, { id: '222', name: 'ตุ๊กตาเป็ด', total: 6 }, { id: '333', name: 'สกุชชี่ซาลาเปา', total: 24 },
+            { id: '444', name: 'สกุชชี่ขนม', total: 3 }, { id: '555', name: 'สกุชชี่กล่องเทา', total: 1 },
+            { id: 'EDU', name: 'ออมสิน', total: 1 }, { id: 'VRU', name: 'ที่นอน', total: 4 }, { id: '2026', name: 'ตุ๊กตาใหญ่', total: 1 },
         ];
 
         window.remoteData = {};
 
-        // เตรียม Dropdown
-        document.getElementById('date-select').innerHTML = ["12/7/69", "13/7/69", "14/7/69"].map(d => `<option value="${d}">${d}</option>`).join('');
-        document.getElementById('shift-select').innerHTML = ["shift1", "shift2", "shift3"].map(s => `<option value="${s}">กะ ${s.replace('shift','')}</option>`).join('');
+        // เตรียม Dropdown วันที่
+        document.getElementById('date-select').innerHTML = DATES.map(d => `<option value="${d}">${d}</option>`).join('');
 
-        // ล็อกอินอัตโนมัติแล้วเปิดท่อรับข้อมูล
+        // ล็อกอินอัตโนมัติแล้วเปิดท่อรับข้อมูลตามรายการวันที่
         signInAnonymously(auth).then(() => {
-            ["12-7-69", "13-7-69", "14-7-69"].forEach(d => {
-                onSnapshot(doc(db, 'daily_stocks', d), (snap) => {
-                    window.remoteData[d.replace(/-/g, '/')] = snap.data() || {};
+            DATES.forEach(d => {
+                const docId = d.replace(/\//g, '-');
+                onSnapshot(doc(db, 'daily_stocks', docId), (snap) => {
+                    window.remoteData[d] = snap.data() || {};
                     document.getElementById('sync-status').innerText = "ออนไลน์ 🟢";
                     window.renderUI();
                 });
@@ -92,24 +94,19 @@
         // ฟังก์ชันคำนวณและวาดหน้าจอ
         window.renderUI = () => {
             const date = document.getElementById('date-select').value;
-            const shift = document.getElementById('shift-select').value;
 
             const renderItems = (list) => list.map(p => {
-                // ข้อมูลของวันและกะที่กำลังเลือกอยู่
+                // ข้อมูลของวันที่กำลังเลือกอยู่
                 const dailyData = window.remoteData[date] || {};
-                const itemData = dailyData[p.id] || {};
-                const currentVal = Number(itemData[shift] || 0);
+                const currentVal = Number(dailyData[p.id] || 0);
                 
-                // คำนวณยอดสะสมรวม (บวกตั้งแต่วันที่ 12 จนถึงวันที่เลือก)
+                // คำนวณยอดสะสมรวม (บวกตั้งแต่วันแรกจนถึงวันที่เลือก)
                 let totalSold = 0;
-                const dateOrder = ["12/7/69", "13/7/69", "14/7/69"];
-                
-                for (let d of dateOrder) {
+                for (let d of DATES) {
                     const dData = window.remoteData[d] || {};
-                    const iData = dData[p.id] || {};
-                    totalSold += (Number(iData.shift1 || 0) + Number(iData.shift2 || 0) + Number(iData.shift3 || 0));
+                    totalSold += Number(dData[p.id] || 0);
                     
-                    // ถ้าบวกถึงวันที่เลือกอยู่แล้ว ให้หยุดบวกทันที (ยอดของวันพรุ่งนี้จะไม่ถูกนำมาหัก)
+                    // ถ้าบวกถึงวันที่เลือกอยู่แล้ว ให้หยุดบวกทันที
                     if (d === date) break; 
                 }
 
@@ -145,17 +142,16 @@
         // ฟังก์ชันกดปุ่มบวก-ลบ
         window.changeValue = (id, delta) => {
             const input = document.getElementById(`input_${id}`);
-            const newVal = Math.max(0, parseInt(input.value) + delta);
+            const newVal = Math.max(0, (parseInt(input.value) || 0) + delta);
             input.value = newVal;
             window.saveData(id, newVal);
         };
 
-        // ฟังก์ชันบันทึกลงฐานข้อมูล
+        // ฟังก์ชันบันทึกลงฐานข้อมูล (บันทึกตรงเข้า ID สินค้า ไม่แยกกะ)
         window.saveData = async (id, val) => {
             document.getElementById('sync-status').innerText = "กำลังเซฟ...";
             const dateStr = document.getElementById('date-select').value.replace(/\//g, '-');
-            const shift = document.getElementById('shift-select').value;
-            await setDoc(doc(db, 'daily_stocks', dateStr), { [id]: { [shift]: Number(val) } }, { merge: true });
+            await setDoc(doc(db, 'daily_stocks', dateStr), { [id]: Number(val) }, { merge: true });
         };
     </script>
 </body>
