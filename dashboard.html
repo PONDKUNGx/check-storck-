@@ -18,12 +18,8 @@
                 <span id="sync-status" class="text-[10px] md:text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">กำลังเชื่อมต่อ...</span>
             </div>
             
-            <!-- เลือกวันที่ -->
-            <select id="date-select" onchange="window.renderUI()" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-900 p-2.5 rounded-xl font-bold text-sm focus:outline-none mb-3">
-                <option value="12/7/69">ดูยอดสะสมถึงวันที่: 12/7/69</option>
-                <option value="13/7/69">ดูยอดสะสมถึงวันที่: 13/7/69</option>
-                <option value="14/7/69">ดูยอดสะสมถึงวันที่: 14/7/69</option>
-            </select>
+            <!-- เลือกวันที่ (สร้างอัตโนมัติจากตัวแปร DATES) -->
+            <select id="date-select" onchange="window.renderUI()" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-900 p-2.5 rounded-xl font-bold text-sm focus:outline-none mb-3"></select>
 
             <!-- กล่องสรุปยอดรวมทั้งหมดของงาน (Grand Total) -->
             <div class="grid grid-cols-2 gap-2">
@@ -68,22 +64,28 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // กำหนดวันที่ 2 วัน (ต้องตั้งชื่อให้ตรงกับตัวแปร DATES ในไฟล์ index.html)
+        const DATES = ["วันที่ 1", "วันที่ 2"];
+
         const prizes = [
             { id: 'A', name: 'ทิชชู่', total: 800 }, { id: 'B', name: 'ขนม', total: 960 }, { id: 'C', name: 'ช้างเล็ก', total: 120 }, { id: 'D', name: 'ช้างใหญ่', total: 60 }, { id: 'E', name: 'สกุชชี่เล็ก', total: 60 }, { id: 'F', name: 'พวงกุญแจเล็ก', total: 120 }, { id: 'G', name: 'พวงกุญแจใหญ่', total: 60 }, { id: 'H', name: 'กระจก/หวี/แปรงสีฟัน/ฟองน้ำ', total: 240 },
             { id: '111', name: 'เต่า', total: 12 }, { id: '222', name: 'ตุ๊กตาเป็ด', total: 12 }, { id: '333', name: 'สกุชชี่ซาลาเปา', total: 24 }, { id: '444', name: 'สกุชชี่ขนม', total: 36 }, { id: '555', name: 'สกุชชี่กล่องเทา', total: 3 }, { id: '666', name: 'ร่ม', total: 6 }, { id: 'EDU', name: 'ออมสิน', total: 2 }, { id: 'VRU', name: 'ที่นอน', total: 3 }, { id: '2026', name: 'ตุ๊กตาใหญ่', total: 2 }, { id: 'KRU69', name: 'เสื้อคณะ', total: 3 }
         ];
 
+        // สร้างตัวเลือกวันที่ใน Dropdown
+        document.getElementById('date-select').innerHTML = DATES.map(d => `<option value="${d}">ดูยอดสะสมถึง: ${d}</option>`).join('');
+
         window.remoteData = {};
-        const dates = ["12-7-69", "13-7-69", "14-7-69"];
         const statusEl = document.getElementById('sync-status');
 
         signInAnonymously(auth).then(() => {
             let loadedCount = 0;
-            dates.forEach(d => {
-                onSnapshot(doc(db, 'daily_stocks', d), (snap) => {
-                    window.remoteData[d.replace(/-/g, '/')] = snap.data() || {};
+            DATES.forEach(d => {
+                const docId = d.replace(/\//g, '-');
+                onSnapshot(doc(db, 'daily_stocks', docId), (snap) => {
+                    window.remoteData[d] = snap.data() || {};
                     loadedCount++;
-                    if(loadedCount > 0) {
+                    if (loadedCount > 0) {
                         statusEl.innerText = "ออนไลน์ 🟢 (อัปเดตเรียลไทม์)";
                         statusEl.className = "text-[10px] md:text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded";
                     }
@@ -102,29 +104,22 @@
             const generateHTML = (list) => {
                 let html = `
                     <div class="hidden sm:flex text-[10px] md:text-xs font-bold text-gray-500 bg-gray-50 px-3 py-2 border-b text-center">
-                        <div class="w-1/3 text-left">รหัส / รายการ</div>
-                        <div class="w-1/6">ออก กะ 1</div>
-                        <div class="w-1/6">ออก กะ 2</div>
-                        <div class="w-1/6">ออก กะ 3</div>
-                        <div class="w-1/6 text-indigo-600">รวมสะสม</div>
-                        <div class="w-1/6 text-red-600">คงเหลือ</div>
+                        <div class="w-2/5 text-left">รหัส / รายการ</div>
+                        <div class="w-1/5">ออกวันนี้</div>
+                        <div class="w-1/5 text-indigo-600">รวมสะสม</div>
+                        <div class="w-1/5 text-red-600">คงเหลือ</div>
                     </div>
                 `;
 
                 html += list.map(p => {
                     const dayData = window.remoteData[selectedDate] || {};
-                    const itemData = dayData[p.id] || { shift1: 0, shift2: 0, shift3: 0 };
-                    const s1 = Number(itemData.shift1 || 0);
-                    const s2 = Number(itemData.shift2 || 0);
-                    const s3 = Number(itemData.shift3 || 0);
+                    const soldToday = Number(dayData[p.id] || 0);
 
                     // คำนวณยอดสะสมถึงวันที่เลือก
                     let totalCumulativeSold = 0;
-                    const dateOrder = ["12/7/69", "13/7/69", "14/7/69"];
-                    for (let d of dateOrder) {
+                    for (let d of DATES) {
                         const dData = window.remoteData[d] || {};
-                        const iData = dData[p.id] || {};
-                        totalCumulativeSold += (Number(iData.shift1 || 0) + Number(iData.shift2 || 0) + Number(iData.shift3 || 0));
+                        totalCumulativeSold += Number(dData[p.id] || 0);
                         if (d === selectedDate) break; 
                     }
 
@@ -135,8 +130,8 @@
                     grandTotalRemain += remain;
 
                     return `
-                        <div class="flex flex-col sm:flex-row px-3 py-3 border-b hover:bg-gray-50 text-sm">
-                            <div class="w-full sm:w-1/3 flex items-center gap-2 mb-3 sm:mb-0">
+                        <div class="flex flex-col sm:flex-row px-3 py-3 border-b hover:bg-gray-50 text-sm items-center">
+                            <div class="w-full sm:w-2/5 flex items-center gap-2 mb-3 sm:mb-0">
                                 <span class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded">${p.id}</span>
                                 <div>
                                     <span class="font-bold text-gray-800">${p.name}</span>
@@ -144,16 +139,18 @@
                                 </div>
                             </div>
                             
-                            <div class="w-full sm:w-2/3 flex justify-between sm:justify-around items-center text-xs sm:text-sm">
-                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 1</span><span class="font-semibold text-gray-600">${s1}</span></div>
-                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 2</span><span class="font-semibold text-gray-600">${s2}</span></div>
-                                <div class="text-center w-10"><span class="sm:hidden text-gray-400 text-[10px] block mb-1">กะ 3</span><span class="font-semibold text-gray-600">${s3}</span></div>
+                            <div class="w-full sm:w-3/5 grid grid-cols-3 gap-2 items-center text-center text-xs sm:text-sm">
+                                <div class="bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-200">
+                                    <span class="sm:hidden text-gray-500 text-[10px] block mb-0.5">ออกวันนี้</span>
+                                    <span class="font-bold text-gray-700 text-base">${soldToday}</span>
+                                </div>
                                 
-                                <div class="text-center bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                                <div class="bg-indigo-50 px-2 py-1.5 rounded-lg border border-indigo-100">
                                     <span class="sm:hidden text-indigo-500 text-[10px] block mb-0.5">รวมสะสม</span>
                                     <span class="font-bold text-indigo-700 text-base">${totalCumulativeSold}</span>
                                 </div>
-                                <div class="text-center bg-red-50 px-3 py-1.5 rounded-lg border border-red-100">
+
+                                <div class="bg-red-50 px-2 py-1.5 rounded-lg border border-red-100">
                                     <span class="sm:hidden text-red-500 text-[10px] block mb-0.5">เหลือ</span>
                                     <span class="font-bold text-lg ${remain <= 0 ? 'text-red-600' : 'text-red-500'}">${remain}</span>
                                 </div>
@@ -165,11 +162,8 @@
             };
 
             // วาดตาราง
-            const normalHTML = generateHTML(prizes.slice(0, 8));
-            const specialHTML = generateHTML(prizes.slice(8));
-            
-            document.getElementById('normal-prizes').innerHTML = normalHTML;
-            document.getElementById('special-prizes').innerHTML = specialHTML;
+            document.getElementById('normal-prizes').innerHTML = generateHTML(prizes.slice(0, 8));
+            document.getElementById('special-prizes').innerHTML = generateHTML(prizes.slice(8));
 
             // อัปเดตตัวเลข Grand Total ขึ้นหน้าจอ
             document.getElementById('grand-total-sold').innerText = grandTotalSold;
